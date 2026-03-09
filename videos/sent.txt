@@ -20,3 +20,8 @@ series-20260309-0325-3.mp4
 /home/clawd/projects/tiktok-agent/videos/series-20260309-0325-1.mp4
 /home/clawd/projects/tiktok-agent/videos/series-20260309-0325-2.mp4
 /home/clawd/projects/tiktok-agent/videos/series-20260309-0325-3.mp4
+series-20260309-0309-1.mp4
+series-20260309-0309-2.mp4
+series-20260309-0539-1.mp4
+series-20260309-0539-2.mp4
+series-20260309-0611-1.mp4 (empty, skipped)
