@@ -1,489 +1,285 @@
 #!/usr/bin/env python3
-"""Generate TikTok slideshow videos using Pollinations.ai + ffmpeg"""
+"""Generate TikTok videos from scripts using Pollinations FLUX API + ffmpeg."""
 
 import os
 import subprocess
 import urllib.parse
+import urllib.request
 import time
-import json
+import tempfile
+import shutil
+from datetime import datetime
 
 FFMPEG = "/home/linuxbrew/.linuxbrew/bin/ffmpeg"
-BASE_DIR = os.path.expanduser("~/projects/tiktok-agent")
-VIDEOS_DIR = os.path.join(BASE_DIR, "videos")
-
-# Font - use a system font
+VIDEOS_DIR = os.path.expanduser("~/projects/tiktok-agent/videos")
+TMP_BASE = os.path.expanduser("~/projects/tiktok-agent/tmp")
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-if not os.path.exists(FONT):
-    FONT = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
-if not os.path.exists(FONT):
-    # find any bold font
-    result = subprocess.run(["find", "/usr/share/fonts", "-name", "*Bold*", "-name", "*.ttf"], 
-                           capture_output=True, text=True)
-    fonts = result.stdout.strip().split("\n")
-    if fonts and fonts[0]:
-        FONT = fonts[0]
-    else:
-        FONT = ""
 
-print(f"Using font: {FONT}")
+os.makedirs(VIDEOS_DIR, exist_ok=True)
+os.makedirs(TMP_BASE, exist_ok=True)
 
-def escape_drawtext(text):
-    """Escape text for ffmpeg drawtext filter"""
-    text = text.replace("\\", "\\\\")
-    text = text.replace("'", "\\'")
-    text = text.replace(":", "\\:")
-    text = text.replace(",", "\\,")
-    text = text.replace("[", "\\[")
-    text = text.replace("]", "\\]")
-    return text
+TIMESTAMP = datetime.now().strftime("%Y%m%d-%H%M")
 
-def download_image(prompt, output_path, max_retries=3):
-    """Download image from Pollinations.ai"""
-    encoded = urllib.parse.quote(prompt)
+# ---------------------------------------------------------------------------
+# Video definitions
+# ---------------------------------------------------------------------------
+
+videos = [
+    {
+        "n": 9,
+        "hook": "La IA negoció mi aumento mejor que yo... y consiguió el doble.",
+        "slides": [
+            ("hook", "Photorealistic 9:16 vertical. A confident young Mexican woman in her late 20s sitting across from a suited manager at a corporate desk, arms crossed, looking calm and powerful. The manager looks slightly nervous. Modern Mexico City office, floor-to-ceiling windows, city skyline at golden hour. Cinematic, high contrast."),
+            ("setup", "Photorealistic 9:16 vertical. Close-up of a phone screen showing a ChatGPT conversation in Spanish with prompt: Ayúdame a negociar un aumento de sueldo del 40%. Hands holding phone, blurred office background. Documentary style, warm office lighting."),
+            ("script", "Photorealistic 9:16 vertical. Phone screen showing a numbered list of salary negotiation talking points in Spanish. Professional, clean UI. Person's hands visible, manicured nails. Shallow depth of field, bokeh background."),
+            ("room", "Photorealistic 9:16 vertical. Same young woman at a conference table, confident posture, subtle smile, eye contact with the camera. She's mid-conversation. Natural corporate lighting, notepad visible on table. Candid editorial style."),
+            ("result", "Photorealistic 9:16 vertical. Woman on phone outside office building, celebrating quietly, fist pump, big smile. CDMX street background with iconic Reforma trees. Afternoon golden light. Natural, joyful, candid."),
+            ("cta", "Photorealistic 9:16 vertical. Same woman looking directly into camera, inviting smile, holding phone toward viewer. Modern CDMX apartment background, plants, warm light. Space left at bottom third for text overlay."),
+        ],
+        "captions": [
+            None,  # slide 1: hook text used
+            "Pedí ayuda a ChatGPT para negociar",
+            "Me dio exactamente qué decir",
+            "Entré a la reunión con todo preparado",
+            "Resultado: 22% de aumento conseguido",
+            "Guarda esto para tu próxima revisión 👇",
+        ],
+    },
+    {
+        "n": 10,
+        "hook": "Así se va a ver el Metro CDMX en 2050 según la IA 🤯",
+        "slides": [
+            ("hook", "Futuristic photorealistic 9:16 vertical. A stunning reimagination of Mexico City Metro Line 1 in 2050. Sleek maglev trains in metallic silver-gold with aztec geometric patterns, levitating above the tracks. Passengers in futuristic casual wear. Bright clean station with biopunk vegetation on walls. Cinematic sci-fi realism."),
+            ("zocalo", "Futuristic photorealistic 9:16 vertical. The Zocalo of Mexico City in 2050. The Cathedral and National Palace are perfectly preserved but surrounded by gleaming eco-towers with vertical gardens. Flying taxis visible in sky. Aztec-inspired architecture fused with ultra-modern glass and steel. Golden hour lighting."),
+            ("polanco", "Futuristic photorealistic 9:16 vertical. Polanco neighborhood 2050. Tree-covered pedestrian megabridge over Presidente Masaryk, luxury shops below, automated delivery drones flying between buildings. Mexican fashion brands on sleek storefronts. Lush, clean, vibrant. Late afternoon light."),
+            ("tepito", "Futuristic photorealistic 9:16 vertical. Tepito market in 2050. Vibrant and alive — drone delivery hubs mixed with traditional market stalls, holographic price displays, same authentic CDMX energy but elevated. Street art murals covering solar panel facades. Real people, real culture, just futuristic."),
+            ("xochimilco", "Futuristic photorealistic 9:16 vertical. Xochimilco canals in 2050. The trajineras are now solar-powered but keep their traditional flower decorations. Crystal clear restored water. Floating gardens chinampas thriving. Biopunk utopian vision, warm sunset colors."),
+            ("cta", "Futuristic photorealistic 9:16 vertical. Aerial view of Mexico City 2050 at twilight — green corridors, glowing city grid, massive central park where Periferico used to be. Stunning, aspirational. Space at bottom for text overlay."),
+        ],
+        "captions": [
+            None,
+            "El Zócalo en 2050: eco-torres y taxis voladores",
+            "Polanco con megapuente peatonal arbolado",
+            "Tepito: misma energía, tecnología del futuro",
+            "Xochimilco: chinampas con agua cristalina",
+            "Comenta tu colonia y la visualizo 👇",
+        ],
+    },
+    {
+        "n": 11,
+        "hook": "Hice en 8 minutos lo que mi colega tardó 3 días... con IA.",
+        "slides": [
+            ("hook", "Photorealistic 9:16 vertical. Split screen: left side shows stressed Mexican office worker surrounded by stacks of printed spreadsheets and reports, fluorescent lighting, tired expression. Right side shows same person relaxed at clean desk with single laptop, coffee, plant, smiling. Stark lifestyle contrast, editorial style."),
+            ("task", "Photorealistic 9:16 vertical. Close-up of a laptop screen showing a complex Excel spreadsheet with hundreds of rows of data, formulas, pivot tables. Hands typing in low office lighting. Overwhelming, chaotic, lots of numbers. Authentic Mexican corporate office vibe."),
+            ("ai_move", "Photorealistic 9:16 vertical. Same laptop but now showing a clean ChatGPT conversation in Spanish. The prompt asks for analysis of a dataset. The response is a clean, structured executive summary in bullet points. Screen glow on face, look of relief and surprise."),
+            ("output", "Photorealistic 9:16 vertical. Phone screen showing a beautifully formatted report with charts and insights, generated by AI. Professional, polished, ready to send to the boss. Person's thumb scrolling through it. Clean desk, natural light."),
+            ("reaction", "Photorealistic 9:16 vertical. Young Mexican professional in casual business clothes walking confidently into a glass-walled meeting room, laptop under arm, slight smirk. CDMX office building interior. Other colleagues visible through glass. Confident, winning."),
+            ("cta", "Photorealistic 9:16 vertical. Person at desk looking directly at camera with a knowing smile, laptop open. Modern home office setup. Direct eye contact, inviting. Warm lighting. Space at bottom third for text overlay."),
+        ],
+        "captions": [
+            None,
+            "El reporte trimestral: cientos de filas de datos",
+            "ChatGPT lo analizó y resumió en segundos",
+            "Reporte listo, profesional, listo para el jefe",
+            "Entré a la junta con todo resuelto 😏",
+            "¿Cuánto tiempo te ahorra la IA? 👇",
+        ],
+    },
+]
+
+
+def download_image(prompt, out_path, retries=3):
+    """Download image from Pollinations FLUX API."""
+    encoded = urllib.parse.quote(prompt, safe='')
     url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&nologo=true&model=flux"
-    
-    for attempt in range(max_retries):
-        print(f"  Downloading image (attempt {attempt+1}): {output_path}")
-        result = subprocess.run([
-            "curl", "-L", "-s", "-o", output_path,
-            "--max-time", "120",
-            "--retry", "2",
-            url
-        ], capture_output=True)
-        
-        if result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 10000:
-            print(f"  ✓ Downloaded {os.path.getsize(output_path)//1024}KB")
+    print(f"  Downloading: {url[:80]}...")
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = resp.read()
+            with open(out_path, "wb") as f:
+                f.write(data)
+            print(f"  → Saved {out_path} ({len(data)//1024}KB)")
             return True
-        else:
-            print(f"  ✗ Failed (code {result.returncode}, size {os.path.getsize(output_path) if os.path.exists(output_path) else 0})")
-            if attempt < max_retries - 1:
-                time.sleep(5)
+        except Exception as e:
+            print(f"  Attempt {attempt+1} failed: {e}")
+            time.sleep(5)
     return False
 
-def add_text_overlay(input_path, output_path, text, font_size=48, is_hook=False):
-    """Add text overlay to image using ffmpeg drawtext"""
-    escaped = escape_drawtext(text)
-    
-    if is_hook:
-        font_size = 72
-    
-    # Build drawtext filter - white text with dark shadow/box
-    # Use text wrapping by splitting long lines manually
+
+def escape_drawtext(text):
+    """Escape text for ffmpeg drawtext."""
+    # Escape special chars: ' : \ [ ]
+    text = text.replace('\\', '\\\\')
+    text = text.replace("'", "\\'")
+    text = text.replace(':', '\\:')
+    text = text.replace('[', '\\[')
+    text = text.replace(']', '\\]')
+    return text
+
+
+def wrap_text(text, max_chars=35):
+    """Simple word wrap."""
     words = text.split()
     lines = []
     current = ""
-    max_chars = 30 if is_hook else 38
-    for word in words:
-        if len(current) + len(word) + 1 <= max_chars:
-            current = (current + " " + word).strip()
+    for w in words:
+        if len(current) + len(w) + 1 <= max_chars:
+            current = (current + " " + w).strip()
         else:
             if current:
                 lines.append(current)
-            current = word
+            current = w
     if current:
         lines.append(current)
-    
-    # Build multiple drawtext filters for each line
-    filters = []
-    line_height = font_size + 10
-    total_height = len(lines) * line_height
-    start_y = f"(h-{total_height})/2"
-    
-    for i, line in enumerate(lines):
-        esc_line = escape_drawtext(line)
-        y_pos = f"(h-{total_height})/2+{i * line_height}"
-        font_arg = f"fontfile={FONT}:" if FONT else ""
-        dt = (f"drawtext={font_arg}"
-              f"fontsize={font_size}:"
-              f"fontcolor=white:"
-              f"shadowcolor=black@0.8:"
-              f"shadowx=3:"
-              f"shadowy=3:"
-              f"box=1:"
-              f"boxcolor=black@0.5:"
-              f"boxborderw=8:"
-              f"x=(w-text_w)/2:"
-              f"y={y_pos}:"
-              f"text='{esc_line}'")
-        filters.append(dt)
-    
-    if not filters:
-        filters = [f"drawtext=fontsize={font_size}:fontcolor=white:text='.'"]
-    
-    vf = ",".join(filters)
-    
-    cmd = [
-        FFMPEG, "-y", "-i", input_path,
-        "-vf", vf,
-        "-q:v", "2",
-        output_path
-    ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"  ⚠ Text overlay failed: {result.stderr[-300:]}")
-        # Fallback: just copy the image
-        subprocess.run(["cp", input_path, output_path])
-    else:
-        print(f"  ✓ Text overlay added")
+    return "\n".join(lines)
 
-def create_slideshow(frame_paths, output_path):
-    """Create slideshow video with xfade transitions"""
-    print(f"  Creating slideshow: {output_path}")
-    
-    n = len(frame_paths)
-    
-    # Build the filter complex with xfade
-    # Each slide is 3 seconds, transition is 0.5s
-    slide_duration = 3.0
-    transition_duration = 0.5
-    
-    # Input args
-    input_args = []
-    for p in frame_paths:
-        input_args += ["-loop", "1", "-t", str(slide_duration + transition_duration), "-i", p]
-    
-    # Build xfade chain
-    # [0][1]xfade=transition=fade:duration=0.5:offset=2.5[v01]
-    # [v01][2]xfade=...
-    
-    if n == 1:
-        # Single image
+
+def build_video(video_def):
+    n = video_def["n"]
+    hook = video_def["hook"]
+    slides = video_def["slides"]
+    captions = video_def["captions"]
+
+    tmp_dir = os.path.join(TMP_BASE, f"video_{n}")
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    print(f"\n{'='*60}")
+    print(f"Building video {n}: {hook}")
+    print(f"{'='*60}")
+
+    # Step 1: Download images
+    img_paths = []
+    for i, (label, prompt) in enumerate(slides):
+        out_path = os.path.join(tmp_dir, f"slide_{i+1}.jpg")
+        if os.path.exists(out_path) and os.path.getsize(out_path) > 10000:
+            print(f"  Slide {i+1} already exists, skipping download.")
+        else:
+            ok = download_image(prompt, out_path)
+            if not ok:
+                print(f"  ERROR: Failed to download slide {i+1}, using fallback black image")
+                # Create black fallback
+                subprocess.run([
+                    FFMPEG, "-y", "-f", "lavfi", "-i", f"color=c=black:size=1080x1920:rate=1",
+                    "-vframes", "1", out_path
+                ], capture_output=True)
+        img_paths.append(out_path)
+        time.sleep(1)  # polite delay
+
+    # Step 2: Add text overlays and create per-slide videos
+    slide_videos = []
+    for i, img_path in enumerate(img_paths):
+        slide_out = os.path.join(tmp_dir, f"slide_{i+1}.mp4")
+        
+        if i == 0:
+            overlay_text = hook
+        else:
+            overlay_text = captions[i] or ""
+
+        # Wrap text
+        wrapped = wrap_text(overlay_text, max_chars=30)
+        lines = wrapped.split("\n")
+        num_lines = len(lines)
+        line_h = 75  # approx height per line at fontsize 60
+        box_h = num_lines * line_h + 40
+        box_y = 1920 - box_h - 60  # bottom third area
+
+        escaped = escape_drawtext(wrapped)
+
+        # Build drawtext filter
+        drawtext = (
+            f"drawtext=fontfile={FONT}:"
+            f"text='{escaped}':"
+            f"fontcolor=white:"
+            f"fontsize=58:"
+            f"x=(w-text_w)/2:"
+            f"y={box_y + 20}:"
+            f"line_spacing=10:"
+            f"box=1:"
+            f"boxcolor=black@0.65:"
+            f"boxborderw=20"
+        )
+
         cmd = [
             FFMPEG, "-y",
-            "-loop", "1", "-t", "3", "-i", frame_paths[0],
-            "-vf", f"scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "23",
-            output_path
+            "-loop", "1",
+            "-i", img_path,
+            "-vf", drawtext,
+            "-t", "3",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-r", "30",
+            slide_out
         ]
-        subprocess.run(cmd, capture_output=True)
-        return
-    
-    # Build complex filter
-    filter_parts = []
-    
-    # Scale all inputs first
-    for i in range(n):
-        filter_parts.append(f"[{i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=25[v{i}]")
-    
-    # Chain xfades
-    prev_out = "v0"
-    for i in range(1, n):
-        offset = (i) * slide_duration - transition_duration
-        if i < n - 1:
-            out_label = f"xf{i}"
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"  ffmpeg slide error: {result.stderr[-500:]}")
         else:
-            out_label = "vout"
-        filter_parts.append(
-            f"[{prev_out}][v{i}]xfade=transition=fade:duration={transition_duration}:offset={offset:.2f}[{out_label}]"
-        )
-        prev_out = out_label
+            print(f"  Slide {i+1} video created: {slide_out}")
+        slide_videos.append(slide_out)
+
+    # Step 3: Concatenate with xfade transitions
+    output_path = os.path.join(VIDEOS_DIR, f"series-{TIMESTAMP}-{n}.mp4")
+    
+    # Build complex filter for xfade
+    # Each slide is 3s, fade duration 0.5s
+    # xfade offsets: 2.5, 5.0, 7.5, 10.0, 12.5
+    inputs = []
+    for sv in slide_videos:
+        inputs += ["-i", sv]
+    
+    num_slides = len(slide_videos)
+    fade_dur = 0.5
+    slide_dur = 3.0
+    
+    # Build xfade chain
+    filter_parts = []
+    for i in range(num_slides - 1):
+        offset = (i + 1) * slide_dur - fade_dur
+        if i == 0:
+            in_a = f"[0:v]"
+            in_b = f"[1:v]"
+        else:
+            in_a = f"[xf{i-1}]"
+            in_b = f"[{i+1}:v]"
+        out_label = f"[xf{i}]"
+        filter_parts.append(f"{in_a}{in_b}xfade=transition=fade:duration={fade_dur}:offset={offset}{out_label}")
     
     filter_complex = ";".join(filter_parts)
+    last_label = f"[xf{num_slides-2}]"
+
+    cmd = (
+        [FFMPEG, "-y"] +
+        inputs +
+        [
+            "-filter_complex", filter_complex,
+            "-map", last_label,
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-r", "30",
+            output_path
+        ]
+    )
     
-    cmd = [FFMPEG, "-y"]
-    cmd += input_args
-    cmd += [
-        "-filter_complex", filter_complex,
-        "-map", "[vout]",
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-crf", "23",
-        "-preset", "fast",
-        output_path
-    ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    print(f"\n  Combining slides into: {output_path}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"  ⚠ Slideshow failed: {result.stderr[-500:]}")
-        print("  Trying concat method...")
-        create_slideshow_concat(frame_paths, output_path)
+        print(f"  ffmpeg combine error:\n{result.stderr[-1000:]}")
     else:
-        size = os.path.getsize(output_path) // 1024 // 1024
-        print(f"  ✓ Slideshow created: {size}MB")
-
-def create_slideshow_concat(frame_paths, output_path):
-    """Fallback: concat method without transitions"""
-    concat_file = output_path + ".concat.txt"
-    with open(concat_file, "w") as f:
-        for p in frame_paths:
-            f.write(f"file '{p}'\n")
-            f.write(f"duration 3\n")
-        # Last image needs duration too
-        f.write(f"file '{frame_paths[-1]}'\n")
-        f.write(f"duration 1\n")
+        size = os.path.getsize(output_path) // (1024*1024)
+        print(f"  ✅ Video {n} saved: {output_path} ({size}MB)")
     
-    cmd = [
-        FFMPEG, "-y",
-        "-f", "concat", "-safe", "0", "-i", concat_file,
-        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,fps=25",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "23", "-preset", "fast",
-        output_path
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-    if result.returncode != 0:
-        print(f"  ✗ Concat also failed: {result.stderr[-300:]}")
-    else:
-        size = os.path.getsize(output_path) // 1024 // 1024
-        print(f"  ✓ Slideshow (concat) created: {size}MB")
-    
-    os.unlink(concat_file)
+    return output_path
 
 
-# ============================================================
-# SERIES DATA
-# ============================================================
+# Generate all 3 videos
+for vdef in videos:
+    build_video(vdef)
 
-SERIES = {
-    1: {
-        "title": "DEPA CON IA",
-        "slides": [
-            {
-                "prompt": "Photorealistic 9:16 vertical cinematic photo of a small Mexico City apartment interior in Roma Norte neighborhood. Cramped living room with worn beige walls, mismatched IKEA furniture, cheap laminate floors, single dirty window with thin curtains, dim afternoon light, cluttered bookshelf, pizza box on coffee table. Moody realistic slightly sad lighting. No people. 35mm film grain.",
-                "text": "Mi casera me llamo FURIOSA despues de ver esto",
-                "is_hook": True
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a laptop screen in a dimly lit apartment showing a ChatGPT interface. Prompt text in Spanish: Redisena este departamento estilo japandi moderno sin remover paredes maximo 8000 pesos. Hands of a young Mexican man typing. Cinematic moody blue screen glow. Shot on Sony A7.",
-                "text": "Le pedi a la IA: redisena mi depa japandi con $8,000 pesos",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical AI architectural visualization of transformed small Mexico City apartment. Japandi minimalist style, warm oak tones, white walls, low platform sofa in cream linen, woven rattan pendant lamp, indoor snake plant and pothos, concrete-look floors, soft warm lighting. Same window with linen sheer curtains golden afternoon light. Magazine-quality cozy. No people.",
-                "text": "El resultado: estilo japandi completo y hermoso",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a Mexican smartphone screen showing WhatsApp conversation. Chat name: Edificio Alvaro Obregon. Message from Senora Carmen: Buenos dias. Vi fotos de su departamento en Instagram. Los cambios estructurales NO estan permitidos en el contrato. Three blue checkmarks. Cinematic dramatic low-key lighting.",
-                "text": "Mi casera: Los cambios estructurales NO estan permitidos",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical photo of a young Mexican man in his mid-20s casual hoodie sitting at small desk in renovated-looking apartment with laptop open. Confidently showing laptop screen. Expression calm slightly smug smile. Walls freshly painted white, removable wallpaper visible, plants on windowsill. Warm natural light. Documentary-style 35mm film.",
-                "text": "Twist: todo era temporal y reversible. Sin romper nada",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical magazine-quality interior photo of small apartment in Mexico City completely transformed on a budget. Japandi minimalist, white walls, low-profile beige sofa with rust throw pillow, bamboo side table, large monstera plant, string lights, organized bookshelf. Golden hour light. No people.",
-                "text": "Sigueme y te mando el prompt exacto por DM",
-                "is_hook": False
-            }
-        ]
-    },
-    2: {
-        "title": "NEGOCIO EN UN DIA",
-        "slides": [
-            {
-                "prompt": "Photorealistic 9:16 vertical cinematic photo of a young Mexican man in his mid-20s lying in bed in a small Mexico City apartment, laptop open on his stomach, phone beside him, Saturday morning light filtering through blinds. He looks slightly bored but focused. Hoodie and sweatpants. Empty coffee mug on nightstand. Laptop screen glows with ChatGPT. 35mm film grain warm morning light.",
-                "text": "$3,000 pesos. Dia 1. Sin inversion.",
-                "is_hook": True
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a laptop screen showing a detailed ChatGPT response in Spanish structured like a business plan: Servicio Diseno de menus digitales para restaurantes Precio 500-800 pesos por menu Herramientas Canva ChatGPT Clientes objetivo taquerias y cafeterias. Clean UI readable text hands visible on keyboard coffee cup in background. Cinematic.",
-                "text": "ChatGPT me dio el plan: menus digitales para taquerias $500-800 por menu",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical split-view photo showing dual-screen setup: on the left a Canva template being edited on a laptop with beautiful restaurant menu design in Spanish. On the right a phone showing ChatGPT conversation generating menu copy. Desk setup with snacks a plant cozy apartment background. Warm productive afternoon light. Documentary-style.",
-                "text": "En 2 horas: 3 menus de ejemplo listos con IA",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a phone screen showing a WhatsApp Business conversation. Sent message: Hola vi que su taqueria no tiene menu digital en WhatsApp le puedo hacer uno profesional hoy mismo por 500 pesos. Below: blue checkmarks and a reply bubble appearing. Screen lit in the dark dramatic.",
-                "text": "Mande mensajes a 20 negocios de mi colonia",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a Mexican smartphone showing a Mercado Pago app notification. The notification reads: Recibiste $600.00 de Taqueria El Guero. Time stamp 2:47 PM. Hand holding the phone casual sleeve visible. Background blurred apartment. Cinematic real.",
-                "text": "La primera transferencia llego: $600 pesos de Taqueria El Guero",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical flat-lay photo on a wooden desk surface showing: a notebook with handwritten tally marks and totals in pesos totaling 3000, a phone displaying Mercado Pago balance, a laptop with Canva open in background, empty snack wrappers, and a pen. Overhead shot warm golden light through window. Authentic not staged.",
-                "text": "Guarda este video. El proximo sabado lo intentas tu",
-                "is_hook": False
-            }
-        ]
-    },
-    3: {
-        "title": "IA EN EL TRABAJO",
-        "slides": [
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a phone screen showing a WhatsApp or Teams conversation. Message from Lic. Ramirez: Buenas tardes. Necesito el analisis de ventas Q1 completo para el lunes 8AM. Minimo 40 paginas con graficas y conclusiones ejecutivas. Time stamp 5:02 PM Friday. Hand holding phone shows tense fingers. Office parking lot background blurred. Cinematic relatable dread.",
-                "text": "Reporte de 40 paginas. 4 minutos. Mi jefe no sabe nada.",
-                "is_hook": True
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical candid photo of a young Mexican professional late 20s sitting in a car in an office parking lot at dusk. Suit jacket slightly loosened tie undone phone in hand. Expression shifts from shocked to a slow knowing smirk. The car interior is lit by phone screen glow. Through windshield a gray Mexico City office building fading orange sky. Documentary raw. Sony A7 50mm shallow depth of field.",
-                "text": "Viernes 5PM. Plan de fin de semana: cancelado... o eso pense",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a laptop screen in a home office or kitchen table setup. The ChatGPT interface shows a long detailed Spanish prompt: Actua como analista de negocios senior. Necesito un reporte ejecutivo de ventas Q1 de 40 paginas con resumen ejecutivo analisis por region comparativo conclusiones estrategicas. Tono formal corporativo mexicano. Hands on keyboard coffee mug nearby casual home clothes. Warm kitchen light.",
-                "text": "El prompt que lo resolvio todo en menos de 5 minutos",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a laptop screen showing a Word document rapidly filling with professional Spanish text headers formatted tables. The document title reads ANALISIS DE VENTAS Q1 2026 INFORME EJECUTIVO. Page count visible in bottom toolbar shows 40 plus pages. The room around the laptop is dark except for screen glow. Cinematic almost surreal speed.",
-                "text": "40+ paginas generadas. Listo para editar con datos reales",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical photo of a young Mexican professional at a kitchen table relaxed in a t-shirt and jeans editing a printed document with a red pen. Coffee cup phone and laptop nearby. The printed pages look professional with real graphs headers executive formatting. He circles one paragraph and adds a handwritten note. Late evening warm lamp light. 35mm film aesthetic.",
-                "text": "Lo revise el viernes en la noche. Sabado libre.",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical photo inside a modern Mexico City corporate meeting room. A projector displays the first slide of a professional presentation titled ANALISIS EJECUTIVO Q1 2026. Around the conference table three or four blurred business professionals. In the foreground the young professional sits confidently back to camera. One exec at the head of the table nods approvingly pointing at the screen. Cinematic wide angle subtle lens flare.",
-                "text": "El prompt exacto te lo enseno en el siguiente video",
-                "is_hook": False
-            }
-        ]
-    },
-    4: {
-        "title": "IA REDISENA MEXICO",
-        "slides": [
-            {
-                "prompt": "Photorealistic 9:16 vertical cinematic photo of the Zocalo Plaza de la Constitucion in Mexico City taken from street level at midday. Mexican flag waves in center Catedral Metropolitana in background gray stone paving vendor stalls tent encampments visible on edges smoggy gray-blue sky. People walking vendors protest banner partially visible. Documentary photography 35mm film grain slight haze.",
-                "text": "Le pedi a la IA que arreglara el Zocalo de CDMX",
-                "is_hook": True
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a laptop screen showing an image generation prompt: The Zocalo of Mexico City redesigned as a modern pedestrian plaza inspired by Medellin and Copenhagen. Green parks replace parking outdoor cafes restored colonial facades with warm lighting wide bike lanes sunset golden hour. The interface shows Midjourney or Adobe Firefly. Dimly lit room hands on keyboard Mexican flag desk ornament visible.",
-                "text": "El prompt: conserva la historia moderniza para la gente",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical AI architectural visualization of a redesigned Zocalo in Mexico City. Historic center transformed: lush green park areas with native Mexican plants nopal jacaranda bugambilia, wide pedestrian promenades, outdoor seating areas with cafes, bike lanes with cyclists, Cathedral and Palacio Nacional remain intact with restored warm-lit facades. Golden sunset light birds in flight families walking. Magazine-quality render.",
-                "text": "Version 1: parques ciclovias y cafes al aire libre",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical AI architectural visualization of the Zocalo in Mexico City with bold futuristic redesign. Glass-paneled buildings integrated behind colonial facades elevated walkways connecting Cathedral to Palacio Nacional holographic public art installations solar panel canopies. Night scene dramatic lighting neon blues and warm ambers. Controversial visually striking AI-imagined. Cinematic high-detail render.",
-                "text": "Version 2: futurista. El INAH ya esta temblando",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical phone screen mockup showing a TikTok comments section in dark mode. Various comments with different like counts: Ya chole con modernizar 4.2K likes, Pero si queda bonito 2.1K likes, La IA no tarda 10 anos en obras como el Metro 8.7K likes, El INAH ya esta temblando 3.3K likes. Authentic TikTok UI. Cinematic mock screenshot.",
-                "text": "La gente: La IA no tarda 10 anos como el Metro",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical stunning AI architectural visualization of a harmoniously redesigned Zocalo in Mexico City. Perfect balance of historic preservation and modern livability: restored colonial buildings warm facade lighting, large central green park with native trees ahuehuete jacaranda, pedestrian-only zone, outdoor market with Mexican crafts, children playing near low fountain, Cathedral and Palacio Nacional perfectly framed. Magic hour golden light. Most beautiful version imaginable.",
-                "text": "Dime que otro lugar de Mexico quieres que redisene con IA",
-                "is_hook": False
-            }
-        ]
-    },
-    5: {
-        "title": "INGRESOS CON IA",
-        "slides": [
-            {
-                "prompt": "Photorealistic 9:16 vertical cinematic photo of a small Mexico City bedroom doubling as a workspace. A single desk with a mid-range laptop phone external monitor and a ring light. IKEA desk mismatched chair. Empty Electrolit and Sabritas bag on the floor. Unmade bed in background. Posters on the wall. Looks like a real 25-year-old room not an influencer studio. Warm late-night lamp light. 35mm film grain.",
-                "text": "$15,000 pesos. Este mes. Sin salir de mi cuarto.",
-                "is_hook": True
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a Mexican smartphone screen showing a Mercado Pago app dashboard. The balance shows 15340 MXN in the available balance area. Below a transaction history showing multiple deposits ranging from 800 to 2500 pesos labeled with blurred client names. Date range last 30 days. Screen partially in shadow held by a casual hand. Authentic not overly staged.",
-                "text": "$15,340 pesos en 30 dias. 9 clientes. Sin oficina.",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a laptop screen showing a clean well-designed Notion dashboard in Spanish titled Ingresos Marzo Stack de IA. Three rows: Copy para redes ChatGPT Canva 5800 pesos 4 clientes, Automatizaciones WhatsApp Make.com 6200 pesos 2 clientes, Presentaciones ejecutivas Gamma.app 3340 pesos 3 clientes. Total row highlighted in green 15340 pesos. Clean minimal design dark mode. Cinematic overhead laptop shot.",
-                "text": "3 fuentes: copy redes, automatizaciones WhatsApp, presentaciones",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical flat-lay photo on a clean dark desk surface. A phone and laptop display various app icons arranged aesthetically: ChatGPT Canva Make.com Gamma.app Notion WhatsApp Business Mercado Pago. Each app logo clearly visible. A handwritten sticky note reads Todo esto es $15K al mes. Overhead cinematic lighting warm desk lamp glow. Slight lens distortion professional editorial look.",
-                "text": "ChatGPT + Canva + Make.com + Gamma.app = tu stack",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical close-up of a phone screen showing a Facebook Marketplace listing: Automatizo el WhatsApp de tu negocio con IA. Respuestas automaticas 24/7 catalogo digital seguimiento de clientes. 1500 pesos una sola vez. The listing has 47 messages and 23 saved. Nearby chat notifications piling up. Background the same bedroom. Real gritty unglamorous sales hustle. Cinematic phone close-up.",
-                "text": "Primer cliente: Facebook Marketplace. $1,500 por automatizar WhatsApp",
-                "is_hook": False
-            },
-            {
-                "prompt": "Photorealistic 9:16 vertical split composition photo. Left half: a crowded Mexico City Metro at rush hour exhausted commuters packed tightly fluorescent lighting tired faces 7AM. Right half: a young person in pajamas holding a coffee mug laptop open on the bed sunlight through the window at 10AM. The contrast is striking and intentional. Text overlay in minimal white font: Mismo pais. Diferente decision. Cinematic punchy aspirational but grounded.",
-                "text": "La siguiente semana: tutorial completo gratis. Sigueme",
-                "is_hook": False
-            }
-        ]
-    }
-}
-
-
-def process_series(series_num, series_data):
-    print(f"\n{'='*60}")
-    print(f"SERIES {series_num}: {series_data['title']}")
-    print(f"{'='*60}")
-    
-    series_dir = os.path.join(VIDEOS_DIR, f"series-{series_num}")
-    os.makedirs(series_dir, exist_ok=True)
-    
-    raw_paths = []
-    overlay_paths = []
-    
-    for i, slide in enumerate(series_data["slides"], 1):
-        print(f"\n--- Slide {i} ---")
-        
-        raw_path = os.path.join(series_dir, f"slide-{i}.jpg")
-        overlay_path = os.path.join(series_dir, f"slide-{i}-text.jpg")
-        
-        # Download image
-        if os.path.exists(raw_path) and os.path.getsize(raw_path) > 10000:
-            print(f"  ✓ Already exists: {raw_path}")
-        else:
-            success = download_image(slide["prompt"], raw_path)
-            if not success:
-                print(f"  ✗ Failed to download slide {i}, using placeholder")
-                # Create a placeholder with ffmpeg
-                color = ["black", "darkblue", "darkgreen", "darkred", "purple", "darkorange"][i % 6]
-                subprocess.run([
-                    FFMPEG, "-y",
-                    "-f", "lavfi", "-i", f"color={color}:size=1080x1920:rate=1",
-                    "-frames:v", "1", raw_path
-                ], capture_output=True)
-        
-        raw_paths.append(raw_path)
-        
-        # Add text overlay
-        add_text_overlay(raw_path, overlay_path, slide["text"], is_hook=slide.get("is_hook", False))
-        overlay_paths.append(overlay_path)
-        
-        # Small delay to avoid overwhelming the API
-        if i < len(series_data["slides"]):
-            time.sleep(2)
-    
-    # Create slideshow
-    output_path = os.path.join(VIDEOS_DIR, f"series-{series_num}.mp4")
-    create_slideshow(overlay_paths, output_path)
-    
-    if os.path.exists(output_path):
-        size = os.path.getsize(output_path)
-        print(f"\n✅ Series {series_num} complete: {output_path} ({size//1024//1024}MB)")
-        return True, size
-    else:
-        print(f"\n❌ Series {series_num} failed")
-        return False, 0
-
-
-# Run all series
-results = {}
-for num in range(1, 6):
-    success, size = process_series(num, SERIES[num])
-    results[num] = {"success": success, "size": size}
-
-print(f"\n{'='*60}")
-print("FINAL RESULTS:")
-print(f"{'='*60}")
-for num, r in results.items():
-    status = "✅" if r["success"] else "❌"
-    size_mb = r["size"] // 1024 // 1024 if r["size"] > 0 else 0
-    print(f"{status} Series {num}: {size_mb}MB")
-
-# Save results
-with open(os.path.join(BASE_DIR, "video_results.json"), "w") as f:
-    json.dump(results, f, indent=2)
-
-print("\nDone!")
+print("\n\nAll videos generated!")
+print("Files in videos dir:")
+for f in sorted(os.listdir(VIDEOS_DIR)):
+    if f.endswith(".mp4"):
+        path = os.path.join(VIDEOS_DIR, f)
+        print(f"  {f} ({os.path.getsize(path)//1024}KB)")
