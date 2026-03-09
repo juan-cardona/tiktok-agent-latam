@@ -25,3 +25,5 @@ series-20260309-0309-2.mp4
 series-20260309-0539-1.mp4
 series-20260309-0539-2.mp4
 series-20260309-0611-1.mp4 (empty, skipped)
+series-20260309-0539-3.mp4
+series-20260309-0643-1.mp4
