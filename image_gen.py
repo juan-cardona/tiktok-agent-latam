@@ -15,30 +15,31 @@ from pathlib import Path
 
 COMFYUI_URL = "http://127.0.0.1:8188"
 
-# SDXL workflow template — portrait format for TikTok (768x1344)
+# SDXL Turbo workflow — TikTok 9:16 portrait (1080x1920)
+# SDXL Turbo needs: cfg=1, steps=4, euler_ancestral sampler, no negative prompt
 SDXL_WORKFLOW = {
     "3": {
         "class_type": "KSampler",
         "inputs": {
-            "cfg": 7,
+            "cfg": 1.0,
             "denoise": 1,
             "latent_image": ["5", 0],
             "model": ["4", 0],
             "negative": ["7", 0],
             "positive": ["6", 0],
-            "sampler_name": "dpmpp_2m",
-            "scheduler": "karras",
+            "sampler_name": "euler_ancestral",
+            "scheduler": "normal",
             "seed": 0,  # will be randomized
-            "steps": 25,
+            "steps": 4,
         },
     },
     "4": {
         "class_type": "CheckpointLoaderSimple",
-        "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"},
+        "inputs": {"ckpt_name": "sd_xl_turbo_1.0_fp16.safetensors"},
     },
     "5": {
         "class_type": "EmptyLatentImage",
-        "inputs": {"batch_size": 1, "height": 1344, "width": 768},
+        "inputs": {"batch_size": 1, "height": 1920, "width": 1080},
     },
     "6": {
         "class_type": "CLIPTextEncode",
@@ -51,7 +52,7 @@ SDXL_WORKFLOW = {
         "class_type": "CLIPTextEncode",
         "inputs": {
             "clip": ["4", 1],
-            "text": "ugly, blurry, low quality, watermark, text, nsfw, distorted, deformed",
+            "text": "",  # SDXL Turbo: empty negative prompt
         },
     },
     "8": {

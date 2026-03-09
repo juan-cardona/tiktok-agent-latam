@@ -1,0 +1,87 @@
+{
+  "date": "2026-03-09T02:19:23.171578-06:00",
+  "hook": {
+    "hook": "Me despedirían si supieran que IA hace el 80% de mi trabajo administrativo",
+    "topic": "Automatización de tareas administrativas",
+    "conflict": "Trabajo repetitivo y tedioso que consume todo el tiempo sin aportar valor real",
+    "resolution": "Claude automatiza formularios, actualizaciones de bases de datos y tareas manuales, permitiendo enfocarse en trabajo estratégico",
+    "score": 10,
+    "format": "talking_head"
+  },
+  "all_hooks": [
+    {
+      "hook": "Pasaba 4 horas diarias copiando datos de Excel... hasta que descubrí esto",
+      "topic": "Automatización de Excel con IA",
+      "conflict": "Empleado perdía medio día laboral copiando y pegando datos entre hojas de cálculo manualmente",
+      "resolution": "Claude genera scripts de Python que automatizan todo el proceso en segundos, liberando 20 horas semanales",
+      "score": 9,
+      "format": "slideshow"
+    },
+    {
+      "hook": "Mi jefa me pidió 50 reportes personalizados para el lunes. Los hice en 30 minutos",
+      "topic": "Generación automática de reportes",
+      "conflict": "Tarea imposible de completar manualmente en el tiempo dado, riesgo de quedar mal con superiores",
+      "resolution": "OpenAI automatiza la creación de reportes personalizados usando plantillas y datos, entrega todo antes del deadline",
+      "score": 8,
+      "format": "talking_head"
+    },
+    {
+      "hook": "Respondía 200 emails al día. Ahora la IA lo hace mientras duermo",
+      "topic": "Automatización de respuestas de email",
+      "conflict": "Agotamiento por responder emails repetitivos que consumen todo el día laboral",
+      "resolution": "IA analiza patrones de respuesta y genera replies automáticos personalizados, reduciendo trabajo a 20 minutos de supervisión",
+      "score": 9,
+      "format": "slideshow"
+    },
+    {
+      "hook": "Me despedirían si supieran que IA hace el 80% de mi trabajo administrativo",
+      "topic": "Automatización de tareas administrativas",
+      "conflict": "Trabajo repetitivo y tedioso que consume todo el tiempo sin aportar valor real",
+      "resolution": "Claude automatiza formularios, actualizaciones de bases de datos y tareas manuales, permitiendo enfocarse en trabajo estratégico",
+      "score": 10,
+      "format": "talking_head"
+    },
+    {
+      "hook": "Tardaba 3 días en hacer facturas. Ahora tardo 5 minutos con esta IA",
+      "topic": "Automatización de facturación",
+      "conflict": "Freelancer o pequeño empresario pierde días en tareas contables en lugar de conseguir clientes",
+      "resolution": "IA extrae datos de proyectos y genera facturas automáticamente con todos los detalles legales y fiscales correctos",
+      "score": 8,
+      "format": "slideshow"
+    }
+  ],
+  "image_prompts": [
+    "Cinematic portrait of a stressed young Latin American office worker in business casual attire, sitting at a messy desk covered with stacks of papers and forms, tired expression, warm office lighting, shallow depth of field, photorealistic, vibrant colors, dramatic side lighting, professional photography",
+    "Wide angle shot of overwhelmed office employee surrounded by mountains of paperwork, administrative forms scattered everywhere, multiple computer screens showing spreadsheets, clock on wall showing late evening, fluorescent office lighting, cinematic composition, photorealistic style, desaturated colors showing exhaustion",
+    "Close-up shot of hands frantically typing on keyboard with sticky notes covering monitor edges, coffee cup and energy drink cans on desk, stress and frustration visible, dramatic overhead lighting, shallow focus on tired hands, photorealistic, muted colors with blue computer screen glow",
+    "Cinematic moment of office worker's face illuminated by laptop screen showing Claude AI interface with purple and orange glow, expression of surprise and hope, dark office background, dramatic contrast lighting, photorealistic, vibrant purple and warm orange color palette, shallow depth of field",
+    "Medium shot of confident professional leaning back in chair with relaxed posture, clean organized desk with single laptop showing automated workflows, subtle smile of satisfaction, bright natural window light, modern office setting, photorealistic, vibrant and fresh color grading, cinematic composition",
+    "Wide cinematic shot of successful office worker standing confidently presenting strategy charts to colleagues in bright modern conference room, automated reports on screen, natural daylight flooding through windows, professional atmosphere, photorealistic, vibrant colors, sharp focus, inspirational mood"
+  ],
+  "image_paths": [],
+  "caption": {
+    "caption_text": "Me despedirían si supieran que IA hace el 80% de mi trabajo administrativo 🤫\n\nMientras todos se quejan de formularios y bases de datos interminables, yo termino en 2 horas lo que antes me tomaba todo el día.\n\nEl secreto no es trabajar más duro... es trabajar más inteligente 💡\n\nGuarda este video para cuando estés ahogado en tareas repetitivas 👇",
+    "hook_line": "Me despedirían si supieran que IA hace el 80% de mi trabajo administrativo 🤫",
+    "cta": "Guarda este video para cuando estés ahogado en tareas repetitivas 👇",
+    "hashtags": [
+      "#InteligenciaArtificial",
+      "#IAenEspañol",
+      "#ProductividadLaboral",
+      "#AutomatizacionDeTareas",
+      "#TrabajandoConIA",
+      "#ClaudeAI",
+      "#TipsDeProductividad",
+      "#TecnologiaLatam",
+      "#TrabajoInteligente",
+      "#EmprendedoresLatam",
+      "#VidaDeOficina",
+      "#HerramientasIA",
+      "#AhorrarTiempo",
+      "#FuturoDelTrabajo",
+      "#TikTokTech"
+    ],
+    "tone": "sorpresa/confesional",
+    "best_posting_time": "7:00-9:00 AM o 6:00-8:00 PM (hora CDMX/Colombia) - cuando la gente va o regresa del trabajo",
+    "full_text": "Me despedirían si supieran que IA hace el 80% de mi trabajo administrativo 🤫\n\nMientras todos se quejan de formularios y bases de datos interminables, yo termino en 2 horas lo que antes me tomaba todo el día.\n\nEl secreto no es trabajar más duro... es trabajar más inteligente 💡\n\nGuarda este video para cuando estés ahogado en tareas repetitivas 👇\n\n#InteligenciaArtificial #IAenEspañol #ProductividadLaboral #AutomatizacionDeTareas #TrabajandoConIA #ClaudeAI #TipsDeProductividad #TecnologiaLatam #TrabajoInteligente #EmprendedoresLatam #VidaDeOficina #HerramientasIA #AhorrarTiempo #FuturoDelTrabajo #TikTokTech"
+  }
+}

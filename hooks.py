@@ -7,10 +7,11 @@ Formula: person + conflict/doubt + AI solves it
 import os
 import json
 import random
-import anthropic
+import requests
 
-# Databricks proxy base URL
-DATABRICKS_BASE_URL = "https://adb-4687815777645220.0.azuredatabricks.net/serving-endpoints/anthropic"
+# Databricks endpoint
+DATABRICKS_BASE_URL = "https://adb-4687815777645220.0.azuredatabricks.net/serving-endpoints"
+DATABRICKS_MODEL = "databricks-claude-sonnet-4-5"
 
 # Trending topics pool (updated periodically)
 TRENDING_TOPICS = [
@@ -41,30 +42,32 @@ Ejemplos:
 """
 
 
-def get_client():
-    """Return Anthropic client — Databricks proxy if key available, else direct."""
-    api_key = os.environ.get("DATABRICKS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+def call_llm(prompt: str, system: str = "", max_tokens: int = 1024) -> str:
+    """Call Databricks-hosted Claude via OpenAI-compatible API."""
+    api_key = os.environ.get("DATABRICKS_API_KEY") or os.environ.get("DATABRICKS_TOKEN")
     if not api_key:
-        raise ValueError(
-            "No API key found. Set DATABRICKS_API_KEY or ANTHROPIC_API_KEY env var."
-        )
-
-    # Prefer Databricks proxy
-    if os.environ.get("DATABRICKS_API_KEY"):
-        return anthropic.Anthropic(
-            api_key=api_key,
-            base_url=DATABRICKS_BASE_URL,
-        )
-    else:
-        return anthropic.Anthropic(api_key=api_key)
+        raise ValueError("Set DATABRICKS_API_KEY env var.")
+    url = f"{DATABRICKS_BASE_URL}/{DATABRICKS_MODEL}/invocations"
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"anthropic_version": "2023-06-01", "max_tokens": max_tokens, "messages": messages},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    # OpenAI-compatible response format
+    return data["choices"][0]["message"]["content"]
 
 
 def research_hooks(n=5, topic=None):
     """Generate n hook ideas for the given topic (random if None)."""
     if topic is None:
         topic = random.choice(TRENDING_TOPICS)
-
-    client = get_client()
 
     system = (
         "Eres un experto en contenido viral de TikTok para audiencia LATAM (México, Argentina, Colombia). "
@@ -88,14 +91,7 @@ Para cada hook, devuelve un JSON con:
 Responde SOLO con un array JSON válido, sin markdown, sin explicaciones.
 """
 
-    message = client.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-        system=system,
-    )
-
-    raw = message.content[0].text.strip()
+    raw = call_llm(prompt, system=system)
     # Strip markdown code fences if present
     if raw.startswith("```"):
         raw = raw.split("```")[1]
@@ -112,8 +108,6 @@ def pick_best_hook(hooks):
 
 def generate_image_prompts(hook, n=6):
     """Generate n image prompts for a slideshow based on the hook."""
-    client = get_client()
-
     prompt = f"""
 Dado este hook de TikTok en español:
 "{hook['hook']}"
@@ -132,13 +126,7 @@ Las imágenes deben fluir como una historia de 6 slides:
 Responde SOLO con un array JSON de {n} strings (los prompts en inglés). Sin markdown.
 """
 
-    message = client.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = message.content[0].text.strip()
+    raw = call_llm(prompt)
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):

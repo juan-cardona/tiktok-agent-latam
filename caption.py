@@ -4,9 +4,10 @@ caption.py — Generate Spanish TikTok caption with hook + CTA
 
 import os
 import json
-import anthropic
+import requests
 
-DATABRICKS_BASE_URL = "https://adb-4687815777645220.0.azuredatabricks.net/serving-endpoints/anthropic"
+DATABRICKS_BASE_URL = "https://adb-4687815777645220.0.azuredatabricks.net/serving-endpoints"
+DATABRICKS_MODEL = "databricks-claude-sonnet-4-5"
 
 HASHTAG_POOLS = {
     "ai": ["#IA", "#InteligenciaArtificial", "#AITools", "#ChatGPT", "#Claude", "#OpenAI"],
@@ -19,13 +20,21 @@ HASHTAG_POOLS = {
 MAX_CAPTION_LENGTH = 2200  # TikTok's limit
 
 
-def get_client():
-    api_key = os.environ.get("DATABRICKS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+def call_llm(prompt: str, max_tokens: int = 1024) -> str:
+    """Call Databricks-hosted Claude via OpenAI-compatible API."""
+    api_key = os.environ.get("DATABRICKS_API_KEY") or os.environ.get("DATABRICKS_TOKEN")
     if not api_key:
-        raise ValueError("Set DATABRICKS_API_KEY or ANTHROPIC_API_KEY env var.")
-    if os.environ.get("DATABRICKS_API_KEY"):
-        return anthropic.Anthropic(api_key=api_key, base_url=DATABRICKS_BASE_URL)
-    return anthropic.Anthropic(api_key=api_key)
+        raise ValueError("Set DATABRICKS_API_KEY env var.")
+    url = f"{DATABRICKS_BASE_URL}/{DATABRICKS_MODEL}/invocations"
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"anthropic_version": "2023-06-01", "max_tokens": max_tokens,
+              "messages": [{"role": "user", "content": prompt}]},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
 
 
 def generate_caption(hook: dict, image_prompts: list[str]) -> dict:
@@ -33,8 +42,6 @@ def generate_caption(hook: dict, image_prompts: list[str]) -> dict:
     Generate full TikTok caption including hook text, body, CTA, and hashtags.
     Returns dict with 'caption', 'hashtags', 'full_text'.
     """
-    client = get_client()
-
     prompt = f"""
 Crea una caption completa para TikTok en español para este contenido:
 
@@ -64,13 +71,7 @@ Responde en JSON con:
 }}
 """
 
-    message = client.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = message.content[0].text.strip()
+    raw = call_llm(prompt)
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):

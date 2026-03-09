@@ -1,0 +1,5 @@
+HOOK: Me despedirían si supieran que IA hace el 80% de mi trabajo administrativo
+
+Conflicto: Trabajo repetitivo y tedioso que consume todo el tiempo sin aportar valor real
+Resolución: Claude automatiza formularios, actualizaciones de bases de datos y tareas manuales, permitiendo enfocarse en trabajo estratégico
+Score: 10/10

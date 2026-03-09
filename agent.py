@@ -15,11 +15,21 @@ Pipeline:
 """
 
 import json
+import os
 import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+# Load .env from project dir
+_env_path = Path(__file__).parent / ".env"
+if _env_path.exists():
+    for _line in _env_path.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _, _v = _line.partition("=")
+            os.environ.setdefault(_k.strip(), _v.strip())
 
 # Project root
 PROJECT_DIR = Path(__file__).parent
@@ -68,6 +78,63 @@ def save_draft(draft_dir: Path, data: dict):
     )
 
     print(f"✅ Draft saved to: {draft_dir}")
+
+
+DISCORD_CHANNEL_ID = "1479274977814511686"
+
+
+def send_discord_notification(draft_dir: Path, draft: dict):
+    """Send draft summary + image previews to Discord via openclaw."""
+    import subprocess
+
+    hook = draft.get("hook", {})
+    caption = draft.get("caption", {})
+    image_paths = draft.get("image_paths", [])
+
+    hook_text = hook.get("hook", "")
+    caption_text = caption.get("caption_text", "")
+    hashtags = " ".join(caption.get("hashtags", [])[:8])  # first 8 hashtags
+    tone = caption.get("tone", "")
+    best_time = caption.get("best_posting_time", "")
+    score = hook.get("score", "?")
+
+    msg = (
+        f"🎬 **TikTok Draft Ready** — {datetime.now(TZ_CDMX).strftime('%Y-%m-%d')}\n\n"
+        f"**Hook** (score {score}/10):\n> {hook_text}\n\n"
+        f"**Caption:**\n{caption_text}\n\n"
+        f"**Hashtags:** {hashtags}\n"
+        f"**Tone:** {tone} | **Best time:** {best_time}\n\n"
+        f"📁 Draft: `{draft_dir}`"
+    )
+
+    # Send text message via openclaw CLI
+    result = subprocess.run(
+        ["openclaw", "message", "send",
+         "--channel", "discord",
+         "--target", DISCORD_CHANNEL_ID,
+         "--message", msg],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"   ⚠️  Discord send failed: {result.stderr[:200]}")
+    else:
+        print(f"   ✅ Discord message sent")
+
+    # Send first 3 images as previews
+    png_images = [p for p in image_paths if str(p).endswith(".png")][:3]
+    for img_path in png_images:
+        if Path(img_path).exists():
+            result = subprocess.run(
+                ["openclaw", "message", "send",
+                 "--channel", "discord",
+                 "--target", DISCORD_CHANNEL_ID,
+                 "--media", img_path],
+                capture_output=True, text=True
+            )
+            if result.returncode != 0:
+                print(f"   ⚠️  Image upload failed for {img_path}: {result.stderr[:100]}")
+            else:
+                print(f"   ✅ Uploaded {Path(img_path).name}")
 
 
 def log(msg: str):
@@ -135,8 +202,8 @@ def run():
     save_draft(draft_dir, draft)
 
     # ── Step 7: Discord notification ──────────────────────────────────────
-    log("📣 Step 7: Discord notification (placeholder — wire separately)")
-    # TODO: call openclaw discord send with draft summary
+    log("📣 Step 7: Sending Discord notification...")
+    send_discord_notification(draft_dir, draft)
 
     log("🎉 Agent complete! Review draft at:")
     log(f"   {draft_dir}")
